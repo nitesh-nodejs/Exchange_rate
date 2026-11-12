@@ -1,0 +1,13 @@
+# Compiled binaries and Cargo build artifacts
+/target/
+
+# Environment variables & API keys (if you add any later)
+.env
+
+# OS & Editor temporary files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
