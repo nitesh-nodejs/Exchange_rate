@@ -21,13 +21,13 @@ struct ExchangeRates {
 async fn main() {
     println!("CNVT --INR --100:Optional --USD, Require--, Optional100");
     loop {
-        let mut command = String::new();
+        let mut command: String = String::new();
 
         stdin()
             .read_line(&mut command)
             .expect("Couldn't read command");
 
-        let command = command_parser(command);
+        let command: Commands = command_parser(command);
 
         match command {
             Commands::CNVT(from, to) => {
@@ -87,10 +87,10 @@ async fn fetch_currency(main_url: String) -> Result<Vec<ExchangeRates>, Error> {
 fn command_parser(commands: String) -> Commands {
     let command: Vec<&str> = commands.split("--").map(|cmd| cmd.trim()).collect();
 
-    let comd = command[0];
-    let from = command[1];
-    let amt = command.get(2).and_then(|_| None);
-    let to = command[3];
+    let comd: &str = command[0];
+    let from: &str = command[1];
+    let amt: Option<u32> = command.get(2).and_then(|_| None);
+    let to: &str = command[3];
 
     if comd == "CNVT" {
         Commands::CNVT(HashMap::from([(String::from(from), amt)]), String::from(to))
