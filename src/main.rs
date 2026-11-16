@@ -1,117 +1,120 @@
+use reqwest::Error;
 use serde::Deserialize;
-use std::{format, io::stdin, println};
+use std::{collections::HashMap, format, io::stdin, println};
 
+// use crate::Exchanges::Success;
+enum Commands {
+    // CNVT --INR 500 --USD
+    CNVT(HashMap<String, Option<u32>>, String),
+    CMPR(String, String, String),
+    Error(String),
+}
 #[derive(Deserialize, Debug)]
 struct ExchangeRates {
     date: String,
-    _base: String,
+    base: String,
     quote: String,
     rate: f64,
 }
 
 #[tokio::main]
 async fn main() {
-    let mut command = String::new();
-    let mut vectors: Vec<&str> = Vec::new();
-    // let mut hash_map: HashMap<&str, &str> = HashMap::new();
-    // let _map_hash = HashMap::from([("cmd", "convert")]);
+    println!("CNVT --INR --100:Optional --USD, Require--, Optional100");
+    loop {
+        let mut command = String::new();
 
-    stdin()
-        .read_line(&mut command)
-        .expect("Couldn't read command");
+        stdin()
+            .read_line(&mut command)
+            .expect("Couldn't read command");
 
-    // cammand list cnvrt --USD --IND, cpmr --USD --IND, cmd --help
+        let command = command_parser(command);
 
-    let cmd: Vec<&str> = command.split("--").map(|cmd| cmd.trim()).collect();
+        match command {
+            Commands::CNVT(from, to) => {
+                for (key, _val) in from {
+                    let main_url =
+                        format!("https://api.frankfurter.dev/v2/rates?quotes={},{}", key, to);
+                    match fetch_currency(main_url).await {
+                        Ok(res) => {
+                            compare_currency(res, &key, &to);
+                        }
+                        Err(error) => {
+                            println!("{}", error)
+                        }
+                    }
+                }
+            }
+            Commands::CMPR(_cmd, from, to) => {
+                let main_url = format!(
+                    "https://api.frankfurter.dev/v2/rates?quotes={},{}",
+                    from, to
+                );
+                match fetch_currency(main_url).await {
+                    Ok(res) => {
+                        compare_currency(res, &from, &to);
+                    }
+                    Err(error) => {
+                        println!("{}", error)
+                    }
+                }
+            }
+            Commands::Error(err) => println!("{err}"),
+        }
 
-    for cmds in cmd {
-        vectors.push(cmds);
+        // let url = format!("https://frankfurter.dev?base=USD&symbols={},{}", from, to);
+
+        // let error = r#"{"err": "Invalid Currency Code", "code": 400}"#;
+        // let success = r#"{"base": "Eur", "rate": }"#;
+
+        // [
+        // ExchangeRates { date: "2026-11-14", base: "EUR", quote: "CNY", rate: 7.3874 },
+        // ExchangeRates { date: "2026-11-13", base: "EUR", quote: "INR", rate: 104.22 }
+        // ]
     }
-
-    let _coms = vectors[0];
-    let from = vectors[1];
-    let to = vectors[2];
-
-    println!("vecotrs: {:?},", vectors);
-    // println!("cmd: {:?} from: {}, to: {}", coms, from, to);
-
-    // ?base=USD&symbols=EUR,GBP
-    let main_url = format!(
-        "https://api.frankfurter.dev/v2/rates?quotes={},{}",
-        from, to
-    );
-    // let url = format!("https://frankfurter.dev?base=USD&symbols={},{}", from, to);
-
-    // println!("URL: {}", main_url);
-
-    let response: Vec<ExchangeRates> = reqwest::get(main_url)
-        .await
-        .expect("reqwest failed")
-        .json()
-        .await
-        .expect("Couldn't parse into json");
-
-    // let cur: String = compare_currency(response);
-    if let Some(currency) = compare_currency(response) {
-        println!("{}", currency)
+}
+async fn fetch_currency(main_url: String) -> Result<Vec<ExchangeRates>, Error> {
+    match reqwest::get(main_url).await {
+        Ok(response) => match response.json::<Vec<ExchangeRates>>().await {
+            Ok(val) => Ok(val),
+            Err(e) => Err(e),
+        },
+        Err(e) => {
+            return Err(e);
+        }
     }
-    // for val in response {
-    //     println!("Date: {:?}", val.date);
-    //     println!("Base: {:?}", val.base);
-    //     println!("Quote: {:?}", val.quote);
-    //     println!("Rate: {:?}", val.rate);
-    // }
 }
 
-// INR -> CNY
-// EUR/CNY * EUR/INR
-// EUR/CNY Rate * (EUR/INR) = 1 CNY = Rupee
-//  7.4123 * 0.00959140 = 0.071CNY
+fn command_parser(commands: String) -> Commands {
+    let command: Vec<&str> = commands.split("--").map(|cmd| cmd.trim()).collect();
 
-// USD -> INR
-//  EUR/INR : EUR/USD
-// EUR/INR Rate * (EUR/USD) = 1 INR = USD
+    let comd = command[0];
+    let from = command[1];
+    let amt = command.get(2).and_then(|_| None);
+    let to = command[3];
 
-// r1 * (base2 / r2) =  q1
+    if comd == "CNVT" {
+        Commands::CNVT(HashMap::from([(String::from(from), amt)]), String::from(to))
+    } else if comd == "CMPR" {
+        Commands::CMPR(String::from(comd), String::from(from), String::from(to))
+    } else {
+        Commands::Error(String::from("No such command exist"))
+    }
+}
 
-// 104.39 * (1 / 1.1139) = q1
-// r1 * 0.89774665 = 93.71 INR
-
-// Date: "2026-11-12"
-// Base: "EUR"
-// Quote: "JPY"
-// Rate: 177.28
-// Date: "2026-11-12"
-// Base: "EUR"
-// Quote: "RUB"
-// Rate: 92.12
-//  r1 * (1 / 92.12) = jpy
-fn compare_currency(response: Vec<ExchangeRates>) -> Option<String> {
-    // let command_list = vec!["cnvrt", "cmpr"];
-    match response.as_slice() {
-        [first, second, ..] => {
-            let r1 = first.rate;
-            let r2 = second.rate;
-
-            // println!("First: {} -> {} at rate {}", first.base, first.quote, r1);
-            // println!("Second: {} -> {} at rate {}", second.base, second.quote, r2);
-
+fn compare_currency(response: Vec<ExchangeRates>, f: &str, t: &str) {
+    println!("f: {}, t: {}", f, t);
+    if let Some(from) = response.iter().find(|rate| rate.quote == f) {
+        if let Some(to) = response.iter().find(|rate| rate.quote == t) {
             let exchange = format!(
-                "As per date:{}, {}: {} -> {}: {}",
-                first.date,
-                first.quote,
-                r1 * (1.0 / r2),
-                second.quote,
-                1
+                "As per date:{}, of base: {}, {}: {} -> {}: {}",
+                from.date,
+                from.base,
+                from.quote,
+                from.rate * (1.0 / to.rate),
+                1,
+                to.quote,
             );
-            return Some(exchange);
-        }
-        _ => {
-            println!(
-                "Expected at least 2 exchange rates, but got {}",
-                response.len()
-            );
+            println!("{:?}", exchange);
         }
     };
-    None
 }
