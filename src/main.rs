@@ -36,7 +36,7 @@ async fn main() {
             .read_line(&mut command)
             .expect("Couldn't read command");
 
-        let command = RowCommand(command);
+        let command: RowCommand = RowCommand(command);
         let command: Commands = command_parser(command);
 
         match command {
@@ -130,9 +130,9 @@ fn command_parser(commands: RowCommand) -> Commands {
     let amt: Option<u32> = command.get(2).and(None);
     let to: &str = command[3];
 
-    if comd == "Cnvt" {
+    if comd == "cnvt" {
         Commands::Cnvt(HashMap::from([(String::from(from), amt)]), String::from(to))
-    } else if comd == "Cmpr" {
+    } else if comd == "cmpr" {
         Commands::Cmpr(String::from(comd), String::from(from), String::from(to))
     } else {
         Commands::Error(String::from("No such command exist"))
